@@ -20,6 +20,7 @@ import {
 } from '@mui/joy';
 import { Prisma } from '@prisma/client';
 import axios from 'axios';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -37,13 +38,22 @@ import { RouteNames } from '@app/types';
 import { fetcher } from '@app/utils/swr-fetcher';
 import { withAuth } from '@app/utils/withAuth';
 
+const SlackBotModal = dynamic(
+  () => import('@app/components/SlackBotSettingsModal'),
+  {
+    ssr: false,
+  }
+);
+
 const Schema = z.object({ query: z.string().min(1) });
 
 export default function DatasourcesPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  console.log('isPremium', session?.user);
+  const [state, setState] = useStateReducer({
+    isSlackModalOpen: false,
+  });
 
   return (
     <Box
@@ -90,167 +100,186 @@ export default function DatasourcesPage() {
 
       <Divider sx={{ mt: 2 }} />
 
-      <Card variant="outlined" className="max-w-sm p-0 mt-8 overflow-hidden">
-        <Box className="relative w-full px-2 py-12 text-center">
-          <Typography
-            level="h2"
-            fontWeight={'bold'}
-            className="relative z-10 block"
-            sx={(theme) => theme.typography.display1}
+      <Stack
+        direction={{
+          xs: 'column',
+          lg: 'row',
+        }}
+        width={'100%'}
+        gap={4}
+        justifyContent={{
+          xs: 'center',
+          lg: 'flex-start',
+        }}
+        alignItems={{
+          xs: 'center',
+          lg: 'flex-start',
+        }}
+      >
+        <Card
+          variant="outlined"
+          className="max-w-full p-0 mt-8 overflow-hidden w-[382px]"
+        >
+          <Box className="relative w-full px-2 py-12 text-center">
+            <Typography
+              level="h2"
+              fontWeight={'bold'}
+              className="relative z-10 block"
+              sx={(theme) => theme.typography.display1}
+            >
+              Chat Site
+            </Typography>
+
+            <Typography>ChatGPT Bot trained on website data</Typography>
+
+            <Stack direction={'column'} gap={1} mt={4}>
+              <Typography level={'body2'}>Integrated via</Typography>
+              <Link target="_blank" href={'https://crisp.chat/'}>
+                <Image
+                  className="w-32 mx-auto "
+                  src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Logo_de_Crisp.svg"
+                  width={20}
+                  height={20}
+                  alt="crisp logo"
+                ></Image>
+              </Link>
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          <Stack
+            p={4}
+            sx={{
+              with: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            gap={2}
           >
-            Chat Site
-          </Typography>
+            {session?.user?.isPremium ? (
+              <Link
+                target="_blank"
+                href={`https://blog.databerry.ai/chat-site`}
+                className="w-full"
+              >
+                <Button
+                  endDecorator={<ArrowForwardRoundedIcon />}
+                  variant="outlined"
+                  sx={{ width: '100%' }}
+                >
+                  Settings
+                </Button>
+              </Link>
+            ) : (
+              <Link
+                href={`${process.env
+                  .NEXT_PUBLIC_STRIPE_PAYMENT_LINK_LEVEL_1!}?client_reference_id=${
+                  session?.user?.id
+                }`}
+                className="w-full"
+              >
+                <Button
+                  endDecorator={<ArrowForwardRoundedIcon />}
+                  variant="outlined"
+                  sx={{ width: '100%' }}
+                >
+                  Subscribe
+                </Button>
+              </Link>
+            )}
 
-          <Typography>ChatGPT Bot trained on website data</Typography>
-
-          <Stack direction={'column'} gap={1} mt={4}>
-            <Typography level={'body2'}>Integrated via</Typography>
-            <Link target="_blank" href={'https://crisp.chat/'}>
-              <Image
-                className="w-32 mx-auto "
-                src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Logo_de_Crisp.svg"
-                width={20}
-                height={20}
-                alt="crisp logo"
-              ></Image>
+            <Link href={RouteNames.CHAT_SITE}>
+              <Typography level="body2" color="neutral">
+                More info
+              </Typography>
             </Link>
           </Stack>
-        </Box>
-
-        <Divider />
-
-        <Stack
-          p={4}
-          sx={{
-            with: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          gap={2}
+        </Card>
+        {/* <Card
+          variant="outlined"
+          className="max-w-full p-0 mt-8 overflow-hidden w-[382px]"
         >
-          {session?.user?.isPremium ? (
-            <Link
-              target="_blank"
-              href={`https://blog.databerry.ai/chat-site`}
-              className="w-full"
+          <Box className="relative w-full px-2 py-12 text-center">
+            <Typography
+              level="h2"
+              fontWeight={'bold'}
+              className="relative z-10 block"
+              sx={(theme) => theme.typography.display1}
             >
+              Slack Bot
+            </Typography>
+
+            <Typography>
+              ChatGPT Bot trained on company data with superpowers ✨
+            </Typography>
+
+            <Stack direction={'column'} gap={1} mt={4}>
+              <Link target="_blank" href={'https://crisp.chat/'}>
+                <Image
+                  className="w-16 mx-auto "
+                  src="/slack-logo.png"
+                  width={100}
+                  height={100}
+                  alt="slack logo"
+                ></Image>
+              </Link>
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          <Stack
+            p={4}
+            sx={{
+              with: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            gap={2}
+          >
+            {session?.user?.isPremium ? (
               <Button
+                onClick={() => setState({ isSlackModalOpen: true })}
                 endDecorator={<ArrowForwardRoundedIcon />}
                 variant="outlined"
                 sx={{ width: '100%' }}
               >
                 Settings
               </Button>
-            </Link>
-          ) : (
-            <Link
-              href={`${process.env
-                .NEXT_PUBLIC_STRIPE_PAYMENT_LINK_LEVEL_1!}?client_reference_id=${
-                session?.user?.id
-              }`}
-              className="w-full"
-            >
-              <Button
-                endDecorator={<ArrowForwardRoundedIcon />}
-                variant="outlined"
-                sx={{ width: '100%' }}
+            ) : (
+              <Link
+                href={`${process.env
+                  .NEXT_PUBLIC_STRIPE_PAYMENT_LINK_LEVEL_1!}?client_reference_id=${
+                  session?.user?.id
+                }`}
+                className="w-full"
               >
-                Subscribe
-              </Button>
-            </Link>
-          )}
+                <Button
+                  endDecorator={<ArrowForwardRoundedIcon />}
+                  variant="outlined"
+                  sx={{ width: '100%' }}
+                >
+                  Subscribe
+                </Button>
+              </Link>
+            )}
 
-          <Link href={RouteNames.CHAT_SITE}>
-            <Typography level="body2" color="neutral">
-              More info
-            </Typography>
-          </Link>
-        </Stack>
-      </Card>
-      {/* <Card variant="outlined" className="max-w-sm p-0 mt-8 overflow-hidden">
-        <Box className="relative w-full px-2 py-12 text-center">
-          <Typography
-            level="h2"
-            fontWeight={'bold'}
-            className="relative z-10 block"
-            sx={(theme) => theme.typography.display1}
-          >
-            Slack Bot
-          </Typography>
-
-          <Typography>ChatGPT Bot trained on website data</Typography>
-
-          <Stack direction={'column'} gap={1} mt={4}>
-            <Typography level={'body2'}>Integrated via</Typography>
-            <Link target="_blank" href={'https://crisp.chat/'}>
-              <Image
-                className="w-32 mx-auto "
-                src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Logo_de_Crisp.svg"
-                width={20}
-                height={20}
-                alt="crisp logo"
-              ></Image>
+            <Link href={RouteNames.CHAT_SITE}>
+              <Typography level="body2" color="neutral">
+                More info
+              </Typography>
             </Link>
           </Stack>
-        </Box>
+        </Card> */}
+      </Stack>
 
-        <Divider />
-
-        <Stack
-          p={4}
-          sx={{
-            with: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-          gap={2}
-        >
-          {session?.user?.isPremium ? (
-            <Link
-              target="_blank"
-              href={`https://slack.com/oauth/v2/authorize?client_id=${
-                process.env.NEXT_PUBLIC_SLACK_CLIENT_ID
-              }&scope=app_mentions:read,channels:history,chat:write,commands,users:read&redirect_uri=${
-                // process.env.NEXT_PUBLIC_DASHBOARD_URL
-                `https://49b1-195-68-57-166.eu.ngrok.io`
-              }/api/slack/auth-callback`}
-              className="w-full"
-            >
-              <Button
-                endDecorator={<ArrowForwardRoundedIcon />}
-                variant="outlined"
-                sx={{ width: '100%' }}
-              >
-                Settings
-              </Button>
-            </Link>
-          ) : (
-            <Link
-              href={`${process.env
-                .NEXT_PUBLIC_STRIPE_PAYMENT_LINK_LEVEL_1!}?client_reference_id=${
-                session?.user?.id
-              }`}
-              className="w-full"
-            >
-              <Button
-                endDecorator={<ArrowForwardRoundedIcon />}
-                variant="outlined"
-                sx={{ width: '100%' }}
-              >
-                Subscribe
-              </Button>
-            </Link>
-          )}
-
-          <Link href={RouteNames.CHAT_SITE}>
-            <Typography level="body2" color="neutral">
-              More info
-            </Typography>
-          </Link>
-        </Stack>
-      </Card> */}
+      <SlackBotModal
+        isOpen={state.isSlackModalOpen}
+        handleCloseModal={() => setState({ isSlackModalOpen: false })}
+      />
     </Box>
   );
 }

@@ -88,17 +88,29 @@ class SlackUtils {
   }
 }
 
-const getDatastoreyBySlackToken = async (token: string) => {
-  const datastore = await prisma.datastore.findUnique({
+const getIntegrationByTeamId = async (teamId: string) => {
+  const integration = await prisma.externalIntegration.findUnique({
     where: {
-      id: 'clg0m4y0i000c0u4dmhf381s6',
+      integrationId: `sl_${teamId}`,
     },
     include: {
-      apiKeys: true,
+      apiKey: {
+        include: {
+          datastore: {
+            include: {
+              apiKeys: true,
+            },
+          },
+        },
+      },
     },
   });
 
-  return datastore;
+  if (!integration?.apiKey?.datastore) {
+    throw new Error('No datastore found');
+  }
+
+  return integration;
 };
 
 const sendLoader = (props: {
@@ -124,7 +136,8 @@ const sendLoader = (props: {
 };
 
 const handleMention = async (payload: MentionEvent) => {
-  const datastore = await getDatastoreyBySlackToken(payload.token);
+  const integration = await getIntegrationByTeamId(payload.team_id);
+  const datastore = integration?.apiKey?.datastore;
 
   const args = payload.event.text.split(' ');
   // remove first element from array
@@ -133,7 +146,7 @@ const handleMention = async (payload: MentionEvent) => {
   const query = (args || []).join(' ');
   const cmd = args?.[0]?.toLowerCase();
   console.log('QUERUY---->', query);
-  const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN!);
+  const slackClient = new WebClient(integration?.integrationToken!);
 
   if (query) {
     sendLoader({
@@ -257,7 +270,7 @@ const handleAsk = async (payload: CommandEvent) => {
     return;
   }
 
-  const datastore = await getDatastoreyBySlackToken(payload.token);
+  const datastore = await getIntegrationByTeamId(payload.team_id);
 
   const { answer } = await chat({
     datastore: datastore as any,
@@ -291,55 +304,7 @@ export const slack = async (req: AppNextApiRequest, res: NextApiResponse) => {
     return handleAsk(req.body);
   }
 
-  const channelId = req.body.channel_id as string;
-
-  const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN!);
-  const limit = 100;
-
-  try {
-    const response = await slackClient.conversations.history({
-      channel: channelId,
-      limit: limit,
-    });
-    const messages = response.messages?.reverse();
-
-    const context = messages
-      ?.map((each) => `From: ${each.user}\nMessage: ${each.text}`)
-      .join('\n\n');
-
-    const datastore = await prisma.datastore.findUnique({
-      where: {
-        id: 'clg0m4y0i000c0u4dmhf381s6',
-        // id: 'clg1xg2h80000l708dymr0fxc',
-      },
-      include: {
-        apiKeys: true,
-      },
-    });
-
-    const { answer } = await chat({
-      datastore: datastore as any,
-      query: `What's Daftpagae?`,
-    });
-
-    console.log('answer', answer);
-  } catch (e) {
-    console.log('ERROR', e);
-  }
-
-  //   const t = async () => {
-  //     return new Promise((resolve) => {
-  //       setTimeout(() => {
-  //         resolve('world');
-  //       }, 10000);
-  //     });
-  //   };
-
-  //   await t();
-
-  // return res.json({
-  //   hello: 'world44444',
-  // });
+  return {};
 };
 
 handler.post(slack);
