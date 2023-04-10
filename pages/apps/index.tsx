@@ -216,15 +216,13 @@ export default function DatasourcesPage() {
             </Typography>
 
             <Stack direction={'column'} gap={1} mt={4}>
-              <Link target="_blank" href={'https://crisp.chat/'}>
-                <Image
-                  className="w-16 mx-auto "
-                  src="/slack-logo.png"
-                  width={100}
-                  height={100}
-                  alt="slack logo"
-                ></Image>
-              </Link>
+              <Image
+                className="w-16 mx-auto "
+                src="/slack-logo.png"
+                width={100}
+                height={100}
+                alt="slack logo"
+              ></Image>
             </Stack>
           </Box>
 
